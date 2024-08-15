@@ -70,6 +70,9 @@ public class MainActivity extends AppCompatActivity implements Runnable, LlamaCa
   private SettingsFields mCurrentSettingsFields;
   private Handler mMemoryUpdateHandler;
   private Runnable memoryUpdater;
+  private int promptID = 0;
+
+  private static final int CONVERSATION_HISTORY_MESSAGE_LOOKBACK = 2;
 
   @Override
   public void onResult(String result) {
@@ -180,6 +183,11 @@ public class MainActivity extends AppCompatActivity implements Runnable, LlamaCa
     mMessageAdapter.notifyDataSetChanged();
   }
 
+  private int setPromptID() {
+
+    return mMessageAdapter.getMaxPromptID() + 1;
+  }
+
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -201,6 +209,7 @@ public class MainActivity extends AppCompatActivity implements Runnable, LlamaCa
     String existingMsgJSON = mDemoSharedPreferences.getSavedMessages();
     if (!existingMsgJSON.isEmpty()) {
       populateExistingMessages(existingMsgJSON);
+      promptID = setPromptID();
     }
     mSettingsButton = requireViewById(R.id.settings);
     mSettingsButton.setOnClickListener(
@@ -537,6 +546,48 @@ public class MainActivity extends AppCompatActivity implements Runnable, LlamaCa
     mMessageAdapter.notifyDataSetChanged();
   }
 
+  private String getConversationHistory() {
+    String conversationHistory = "";
+
+    ArrayList<Message> conversations =
+        mMessageAdapter.getRecentSavedTextMessages(CONVERSATION_HISTORY_MESSAGE_LOOKBACK);
+    if (conversations.isEmpty()) {
+      return conversationHistory;
+    }
+
+    int prevPromptID = conversations.get(0).getPromptID();
+    String conversationFormat =
+        PromptFormat.getConversationFormat(mCurrentSettingsFields.getModelType());
+    String format = conversationFormat;
+    for (int i = 0; i < conversations.size(); i++) {
+      Message conversation = conversations.get(i);
+      int currentPromptID = conversation.getPromptID();
+      if (currentPromptID != prevPromptID) {
+        conversationHistory = conversationHistory + format;
+        format = conversationFormat;
+        prevPromptID = currentPromptID;
+      }
+      if (conversation.getIsSent()) {
+        format = format.replace(PromptFormat.USER_PLACEHOLDER, conversation.getText());
+      } else {
+        format = format.replace(PromptFormat.ASSISTANT_PLACEHOLDER, conversation.getText());
+      }
+    }
+    conversationHistory = conversationHistory + format;
+
+    return conversationHistory;
+  }
+
+  private String getTotalFormattedPrompt(String conversationHistory, String rawPrompt) {
+    if (conversationHistory.isEmpty()) {
+      return mCurrentSettingsFields.getFormattedSystemAndUserPrompt(rawPrompt);
+    }
+
+    return mCurrentSettingsFields.getFormattedSystemPrompt()
+        + conversationHistory
+        + mCurrentSettingsFields.getFormattedUserPrompt(rawPrompt);
+  }
+
   private void onModelRunStarted() {
     mSendButton.setClickable(false);
     mSendButton.setImageResource(R.drawable.baseline_stop_24);
@@ -572,20 +623,21 @@ public class MainActivity extends AppCompatActivity implements Runnable, LlamaCa
                             + " bytes size = "
                             + image.getBytes().length);
               });
+          String conversationHistory = getConversationHistory();
           String rawPrompt = mEditTextMessage.getText().toString();
-          String prompt = mCurrentSettingsFields.getFormattedSystemAndUserPrompt(rawPrompt);
           // We store raw prompt into message adapter, because we don't want to show the extra
           // tokens from system prompt
-          mMessageAdapter.add(new Message(rawPrompt, true, MessageType.TEXT, 0));
+          mMessageAdapter.add(new Message(rawPrompt, true, MessageType.TEXT, promptID));
           mMessageAdapter.notifyDataSetChanged();
           mEditTextMessage.setText("");
-          mResultMessage = new Message("", false, MessageType.TEXT, 0);
+          mResultMessage = new Message("", false, MessageType.TEXT, promptID);
           mMessageAdapter.add(mResultMessage);
           // Scroll to bottom of the list
           mMessagesView.smoothScrollToPosition(mMessageAdapter.getCount() - 1);
           // After images are added to prompt and chat thread, we clear the imageURI list
           // Note: This has to be done after imageURIs are no longer needed by LlamaModule
           mSelectedImageUri = null;
+          promptID++;
           Runnable runnable =
               new Runnable() {
                 @Override
@@ -597,9 +649,10 @@ public class MainActivity extends AppCompatActivity implements Runnable, LlamaCa
                           onModelRunStarted();
                         }
                       });
-                  ETLogging.getInstance().log("Running inference.. prompt=" + prompt);
+                  String finalPrompt = getTotalFormattedPrompt(conversationHistory, rawPrompt);
+                  ETLogging.getInstance().log("Running inference.. prompt=" + finalPrompt);
                   long generateStartTime = System.currentTimeMillis();
-                  mModule.generate(prompt, MainActivity.this);
+                  mModule.generate(finalPrompt, MainActivity.this);
                   long generateDuration = System.currentTimeMillis() - generateStartTime;
                   mResultMessage.setTotalGenerationTime(generateDuration);
                   runOnUiThread(
