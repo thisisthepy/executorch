@@ -13,6 +13,15 @@ try:
     )
 
     kernel_mode = "portable"
+    # Load portable lib.
+    from executorch.extension.pybindings import portable_lib  # noqa # usort: skip
+
+    # Load custom ops and quantized ops.
+    from executorch.extension.llm.custom_ops import (  # noqa
+        sdpa_with_kv_cache,  # usort: skip
+    )
+    from executorch.kernels import quantized  # noqa
+
 except Exception:
     print("can't load portable lib")
 
@@ -35,4 +44,5 @@ from executorch.extension.pybindings.test.make_test import make_test
 
 class PybindingsTest(unittest.TestCase):
     def test(self):
-        make_test(self, _load_for_executorch_from_buffer)(self)
+        test_func = make_test(self, _load_for_executorch_from_buffer)
+        test_func(self)
