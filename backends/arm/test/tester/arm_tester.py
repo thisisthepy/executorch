@@ -242,7 +242,10 @@ class ArmTester(Tester):
         # Loop inputs and compare reference stage with the compared stage.
         for run_iteration in range(num_runs):
             reference_input = inputs if inputs else next(self.generate_random_inputs())
-            if is_nhwc:
+            if (
+                is_nhwc
+                and test_stage == self.stages[self.stage_name(tester.ToExecutorch)]
+            ):
                 test_input = self.transpose_data_format(reference_input, "NHWC")
             else:
                 test_input = reference_input
@@ -261,7 +264,10 @@ class ArmTester(Tester):
 
             reference_output = reference_stage.run_artifact(reference_input)
             test_output = (test_stage.run_artifact(test_input),)
-            if is_nhwc:
+            if (
+                is_nhwc
+                and test_stage == self.stages[self.stage_name(tester.ToExecutorch)]
+            ):
                 test_output = self.transpose_data_format(test_output, "NCHW")
 
             self._compare_outputs(
