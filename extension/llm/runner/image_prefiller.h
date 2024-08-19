@@ -22,12 +22,13 @@ class ImagePrefiller {
   /**
    * Prefill an LLM Module with the given image input.
    * @param image The image input to the multimodal LLM.
-   * @param start_pos The starting position in KV cache of the input in the LLM
+   * @param start_pos The starting position in KV cache of the input in the LLM.
+   * It's passed as reference and will be updated inside this function.
    * @return The next token of the LLM Module after prefill.
    */
   virtual Result<exec_aten::Tensor> prefill(
       Image& image,
-      int64_t start_pos = 0) = 0;
+      int64_t& start_pos) = 0;
 
   virtual Error load() = 0;
   virtual bool is_method_loaded() = 0;

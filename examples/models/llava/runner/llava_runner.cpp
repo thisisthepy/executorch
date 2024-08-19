@@ -103,8 +103,8 @@ Error LlavaRunner::generate(
 
   // prefill images
   for (auto& image : images) {
+    // pos is updated inside image prefill.
     auto logits = ET_UNWRAP(image_prefiller_->prefill(image, pos));
-    pos += logits.size(1);
   }
 
   // prefill user prompt. No BOS because preset prompt already has it.

@@ -65,23 +65,15 @@ class TextDecoderRunner {
    * @return The next token.
    */
   inline int32_t logits_to_token(const exec_aten::Tensor& logits_tensor) {
-    ET_CHECK_MSG(logits_tensor.dim() == 3, "Logits tensor must be 3D");
-    auto num_tokens = logits_tensor.size(1);
-    auto vocab_size = logits_tensor.size(2);
-
     switch (logits_tensor.scalar_type()) {
       case ScalarType::Float: {
         float* logits = logits_tensor.mutable_data_ptr<float>();
-        float* logits_last = logits;
-        logits_last += (num_tokens - 1) * vocab_size;
-        return sampler_->sample(logits_last);
+        return sampler_->sample(logits);
       }
       case ScalarType::Half: {
         exec_aten::Half* logits =
             logits_tensor.mutable_data_ptr<exec_aten::Half>();
-        exec_aten::Half* logits_last = logits;
-        logits_last += (num_tokens - 1) * vocab_size;
-        return sampler_->sample(logits_last);
+        return sampler_->sample(logits);
       }
       default:
         ET_CHECK_MSG(
